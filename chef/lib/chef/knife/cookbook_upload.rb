@@ -79,11 +79,14 @@ class Chef
 
         if config[:all]
           justify_width = cookbook_repo.cookbook_names.map {|name| name.size}.max.to_i + 2
+
+          cbs = []
           cookbook_repo.each do |cookbook_name, cookbook|
+            cbs << cookbook
             cookbook.freeze_version if config[:freeze]
-            upload(cookbook, justify_width)
             version_constraints_to_update[cookbook_name] = cookbook.version
           end
+          upload(cbs, justify_width)
         else
           if @name_args.empty?
             show_usage
@@ -100,7 +103,7 @@ class Chef
                 end
               end
               cookbook.freeze_version if config[:freeze]
-              upload(cookbook, justify_width)
+              upload([cookbook], justify_width)
               version_constraints_to_update[cookbook_name] = cookbook.version
             rescue Exceptions::CookbookNotFoundInRepo => e
               ui.error("Could not find cookbook #{cookbook_name} in your cookbook path, skipping it")
@@ -162,12 +165,13 @@ WARNING
         end
       end
 
-      def upload(cookbook, justify_width)
-        ui.info("Uploading #{cookbook.name.to_s.ljust(justify_width + 10)} [#{cookbook.version}]")
-
-        check_for_broken_links(cookbook)
-        check_dependencies(cookbook)
-        Chef::CookbookUploader.new(cookbook, config[:cookbook_path], :force => config[:force]).upload_cookbook
+      def upload(cookbooks, justify_width)
+        cookbooks.each do |cb|
+          ui.info("Uploading #{cb.name.to_s.ljust(justify_width + 10)} [#{cb.version}]")
+          check_for_broken_links(cb)
+          check_dependencies(cb)
+        end
+        Chef::CookbookUploader.new(cookbooks, config[:cookbook_path], :force => config[:force]).upload_cookbooks
       rescue Net::HTTPServerException => e
         case e.response.code
         when "409"
